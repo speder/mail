@@ -184,6 +184,8 @@ describe "IMAP Retriever" do
 
       options[:mailbox].should_not be_blank
       options[:mailbox].should == 'INBOX'
+
+      options[:archive].should be_blank
     end
     it "should not replace given configuration" do
       retrievable = Mail::IMAP.new({})
@@ -191,7 +193,8 @@ describe "IMAP Retriever" do
         :mailbox => 'some/mail/box',
         :count => 2,
         :order => :asc,
-        :what => :first
+        :what => :first,
+        :archive => 'another/mail/box'
       })
 
       options[:count].should_not be_blank
@@ -205,6 +208,9 @@ describe "IMAP Retriever" do
 
       options[:mailbox].should_not be_blank
       options[:mailbox].should == 'some/mail/box'
+
+      options[:archive].should_not be_blank
+      options[:archive].should == 'another/mail/box'
     end
     it "should ensure utf7 conversion for mailbox names" do
       retrievable = Mail::IMAP.new({})

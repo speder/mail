@@ -56,11 +56,16 @@ module Mail
     #            instance of Message, not an array of Message instances.
     #   delete_after_find: flag for whether to delete each retreived email after find. Default
     #           is false. Use #find_and_delete if you would like this to default to true.
+    #   archive: mailbox to copy message prior to deletion. Only valid if delete_after_find is true.
     #
     def find(options={}, &block)
       options = validate_options(options)
 
       start do |imap|
+        if options[:archive] && imap.list('', options[:archive]).empty?
+          imap.create(options[:archive])
+        end
+
         imap.select(options[:mailbox])
 
         message_ids = imap.uid_search(options[:keys])
@@ -79,7 +84,11 @@ module Mail
             else
               yield new_message
             end
-            imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED]) if options[:delete_after_find] && new_message.is_marked_for_delete?
+            # imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED]) if options[:delete_after_find] && new_message.is_marked_for_delete?
+            if options[:delete_after_find] && new_message.is_marked_for_delete?
+              imap.uid_copy(message_id, options[:archive]) if options[:archive]
+              imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED])
+            end
           end
           imap.expunge if options[:delete_after_find]
         else
@@ -87,7 +96,11 @@ module Mail
           message_ids.each do |message_id|
             fetchdata = imap.uid_fetch(message_id, ['RFC822'])[0]
             emails << Mail.new(fetchdata.attr['RFC822'])
-            imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED]) if options[:delete_after_find]
+            # imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED]) if options[:delete_after_find]
+            if options[:delete_after_find]
+              imap.uid_copy(message_id, options[:archive]) if options[:archive]
+              imap.uid_store(message_id, "+FLAGS", [Net::IMAP::DELETED])
+            end
           end
           imap.expunge if options[:delete_after_find]
           emails.size == 1 && options[:count] == 1 ? emails.first : emails
@@ -130,6 +143,9 @@ module Mail
         options[:keys]    ||= 'ALL'
         options[:delete_after_find] ||= false
         options[:mailbox] = Net::IMAP.encode_utf7(options[:mailbox])
+        if options[:archive]
+          options[:archive] = Net::IMAP.encode_utf7(options[:archive])
+        end
 
         options
       end
